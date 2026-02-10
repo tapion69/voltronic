@@ -1,7 +1,11 @@
 #!/usr/bin/with-contenv bash
 set -euo pipefail
 
+# ✅ charge bashio (sinon bashio::log.* / bashio::config = "command not found")
+source /usr/lib/bashio/bashio.sh
+
 bashio::log.info "Smart Voltronic: init..."
+
 
 MQTT_HOST="$(bashio::config 'mqtt_host')"
 MQTT_PORT="$(bashio::config 'mqtt_port')"
