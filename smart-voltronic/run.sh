@@ -54,5 +54,6 @@ sed -i "s/__SERIAL_1__/$(esc "$SERIAL_1")/g" /data/flows.json
 sed -i "s/__SERIAL_2__/$(esc "$SERIAL_2")/g" /data/flows.json
 sed -i "s/__SERIAL_3__/$(esc "$SERIAL_3")/g" /data/flows.json
 
+node -v
 logi "Starting Node-RED..."
 exec node-red --userDir /data --settings /addon/settings.js
