@@ -8,7 +8,8 @@
   "arch": ["amd64", "aarch64", "armv7"],
 
   "init": false,
-  "host_network": true,
+  "services": ["mqtt:need"],
+  "host_network": false,
 
   "devices": [
     "/dev/serial/by-id:/dev/serial/by-id:rwm"
@@ -17,22 +18,10 @@
   "map": ["data:rw"],
 
   "options": {
-    "mqtt_host": "core-mosquitto",
-    "mqtt_port": 1883,
-    "mqtt_user": "",
-    "mqtt_pass": "",
-    "serial_ports": [
-      "",
-      "",
-      ""
-    ]
+    "serial_ports": ["", "", ""]
   },
 
   "schema": {
-    "mqtt_host": "str",
-    "mqtt_port": "int",
-    "mqtt_user": "str?",
-    "mqtt_pass": "password?",
-    "serial_ports": ["str?"]
+    "serial_ports": ["str?", "str?", "str?"]
   }
 }
