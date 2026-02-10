@@ -21,43 +21,57 @@ logi "Smart Voltronic: init..."
 OPTS="/data/options.json"
 
 # Crée options.json si absent (premier démarrage / install manuelle)
+# Ici on ne stocke QUE serial_ports (MQTT peut venir de services mqtt)
 if [ ! -f "$OPTS" ]; then
   logw "options.json introuvable, création avec valeurs par défaut: $OPTS"
   cat > "$OPTS" <<'JSON'
 {
+  "serial_ports": ["", "", ""],
   "mqtt_host": "core-mosquitto",
   "mqtt_port": 1883,
   "mqtt_user": "",
-  "mqtt_pass": "",
-  "serial_ports": ["", "", ""]
+  "mqtt_pass": ""
 }
 JSON
 fi
 
-# Helpers jq: string avec fallback si vide OU null
+# Helpers jq
 jq_str_or() {
   local jq_expr="$1"
   local fallback="$2"
   jq -r "($jq_expr // \"\") | if (type==\"string\" and length>0) then . else \"$fallback\" end" "$OPTS"
 }
-
 jq_int_or() {
   local jq_expr="$1"
   local fallback="$2"
   jq -r "($jq_expr // $fallback) | tonumber" "$OPTS" 2>/dev/null || echo "$fallback"
 }
 
-# Lecture options
-MQTT_HOST="$(jq_str_or '.mqtt_host' 'core-mosquitto')"
-MQTT_PORT="$(jq_int_or '.mqtt_port' 1883)"
-MQTT_USER="$(jq -r '.mqtt_user // ""' "$OPTS")"
-MQTT_PASS="$(jq -r '.mqtt_pass // ""' "$OPTS")"
+# ---------- MQTT : auto via services mqtt (si disponible), sinon fallback options.json ----------
+MQTT_HOST=""
+MQTT_PORT=""
+MQTT_USER=""
+MQTT_PASS=""
 
+if [ -f /usr/lib/bashio/bashio.sh ] && bashio::services.available mqtt >/dev/null 2>&1; then
+  MQTT_HOST="$(bashio::services mqtt host)"
+  MQTT_PORT="$(bashio::services mqtt port)"
+  MQTT_USER="$(bashio::services mqtt username)"
+  MQTT_PASS="$(bashio::services mqtt password)"
+  logi "MQTT (HA service): ${MQTT_HOST}:${MQTT_PORT} (user: ${MQTT_USER:-<none>})"
+else
+  MQTT_HOST="$(jq_str_or '.mqtt_host' 'core-mosquitto')"
+  MQTT_PORT="$(jq_int_or '.mqtt_port' 1883)"
+  MQTT_USER="$(jq -r '.mqtt_user // ""' "$OPTS")"
+  MQTT_PASS="$(jq -r '.mqtt_pass // ""' "$OPTS")"
+  logw "MQTT (fallback options.json): ${MQTT_HOST}:${MQTT_PORT} (user: ${MQTT_USER:-<none>})"
+fi
+
+# ---------- Serial ports (options.json) ----------
 SERIAL_1="$(jq -r '.serial_ports[0] // ""' "$OPTS")"
 SERIAL_2="$(jq -r '.serial_ports[1] // ""' "$OPTS")"
 SERIAL_3="$(jq -r '.serial_ports[2] // ""' "$OPTS")"
 
-logi "MQTT: ${MQTT_HOST}:${MQTT_PORT} (user: ${MQTT_USER:-<none>})"
 logi "Serial1: ${SERIAL_1:-<empty>}"
 logi "Serial2: ${SERIAL_2:-<empty>}"
 logi "Serial3: ${SERIAL_3:-<empty>}"
@@ -87,9 +101,6 @@ sed -i "s/__SERIAL_2__/$(esc "$SERIAL_2")/g" /data/flows.json
 sed -i "s/__SERIAL_3__/$(esc "$SERIAL_3")/g" /data/flows.json
 
 # --- Suppression dynamique des ports non configurés (robuste, basé sur NAME) ---
-# On supprime:
-# - le serial in/out nommé "📥 Serial In N" / "📤 Serial Out N"
-# - et la config "serial-port" référencée par leur champ "serial"
 remove_serial_group_if_empty() {
   local n="$1"
   local port="$2"
@@ -105,8 +116,6 @@ remove_serial_group_if_empty() {
 
   local tmp="/data/flows.tmp.json"
 
-  # 1) récupérer les IDs de config série référencés par ces nodes
-  # (peut être vide si les nodes n'existent pas)
   local cfg_ids
   cfg_ids="$(jq -r --arg in "$in_name" --arg out "$out_name" '
     [ .[]
@@ -117,18 +126,14 @@ remove_serial_group_if_empty() {
     | .[]
   ' /data/flows.json 2>/dev/null || true)"
 
-  # 2) supprimer les nodes serial in/out de ce groupe par name
   jq --arg in "$in_name" --arg out "$out_name" '
     map(select(!((.type=="serial in" and .name==$in) or (.type=="serial out" and .name==$out))))
   ' /data/flows.json > "$tmp" && mv "$tmp" /data/flows.json
 
-  # 3) supprimer les configs "serial-port" référencées (si elles ne sont plus utilisées ailleurs)
-  # On ne supprime que si aucun autre serial in/out ne référence ce cfg.
   if [ -n "$cfg_ids" ]; then
     while IFS= read -r cfg; do
       [ -z "$cfg" ] && continue
 
-      # encore utilisé ?
       if jq -e --arg cfg "$cfg" '
           any(.[]; ((.type=="serial in" or .type=="serial out") and (.serial==$cfg)))
         ' /data/flows.json >/dev/null 2>&1; then
