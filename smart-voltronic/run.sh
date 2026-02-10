@@ -20,18 +20,11 @@ logi "Smart Voltronic: init..."
 
 OPTS="/data/options.json"
 
-# options.json minimal (serial ports) + fallback mqtt (dev)
+# ✅ NE PAS créer options.json : sinon on masque le montage HA et on perd user/pass
 if [ ! -f "$OPTS" ]; then
-  logw "options.json introuvable, création avec valeurs par défaut: $OPTS"
-  cat > "$OPTS" <<'JSON'
-{
-  "serial_ports": ["", "", ""],
-  "mqtt_host": "core-mosquitto",
-  "mqtt_port": 1883,
-  "mqtt_user": "",
-  "mqtt_pass": ""
-}
-JSON
+  loge "options.json introuvable dans /data (montage HA absent ou problème d'add-on). Stop."
+  loge "Chemin attendu: $OPTS"
+  exit 1
 fi
 
 # Helpers jq
@@ -46,7 +39,10 @@ jq_int_or() {
   jq -r "($jq_expr // $fallback) | tonumber" "$OPTS" 2>/dev/null || echo "$fallback"
 }
 
-# ---------- MQTT : HA service si dispo, sinon fallback ----------
+# Escape safe pour sed
+esc() { printf '%s' "$1" | sed -e 's/[\/&|\\]/\\&/g'; }
+
+# ---------- MQTT : HA service si dispo, sinon fallback options.json ----------
 MQTT_HOST=""
 MQTT_PORT=""
 MQTT_USER=""
@@ -60,16 +56,22 @@ if [ -f /usr/lib/bashio/bashio.sh ]; then
     MQTT_PASS="$(bashio::services mqtt password)"
     logi "MQTT (HA service): ${MQTT_HOST}:${MQTT_PORT} (user: ${MQTT_USER:-<none>})"
   else
-    logw "MQTT service indisponible (config.json: hassio_api: true + services: [\"mqtt:need\"])"
+    logw "MQTT service indisponible (API Supervisor). On utilise options.json."
   fi
 fi
 
 if [ -z "${MQTT_HOST}" ] || [ -z "${MQTT_PORT}" ]; then
   MQTT_HOST="$(jq_str_or '.mqtt_host' 'core-mosquitto')"
   MQTT_PORT="$(jq_int_or '.mqtt_port' 1883)"
-  MQTT_USER="$(jq -r '.mqtt_user // ""' "$OPTS")"
-  MQTT_PASS="$(jq -r '.mqtt_pass // ""' "$OPTS")"
+  # ✅ accepte plusieurs noms de champs
+  MQTT_USER="$(jq -r '.mqtt_user // .mqtt_username // ""' "$OPTS")"
+  MQTT_PASS="$(jq -r '.mqtt_pass // .mqtt_password // ""' "$OPTS")"
   logw "MQTT (fallback options.json): ${MQTT_HOST}:${MQTT_PORT} (user: ${MQTT_USER:-<none>})"
+fi
+
+if [ -z "${MQTT_USER}" ] || [ -z "${MQTT_PASS}" ]; then
+  loge "MQTT_USER ou MQTT_PASS vide -> Mosquitto refusera probablement la connexion."
+  loge "Vérifie la config de l'add-on dans l'UI HA (mqtt_user/mqtt_pass)."
 fi
 
 # ---------- Serial ports ----------
@@ -87,11 +89,9 @@ for p in "$SERIAL_1" "$SERIAL_2" "$SERIAL_3"; do
   fi
 done
 
-# Réappliquer le flow
+# ---------- Appliquer flows ----------
+mkdir -p /data
 cp /addon/flows.json /data/flows.json
-
-# Escape safe pour sed
-esc() { printf '%s' "$1" | sed -e 's/[\/&|\\]/\\&/g'; }
 
 # Inject MQTT
 sed -i "s/__MQTT_HOST__/$(esc "$MQTT_HOST")/g" /data/flows.json
@@ -104,11 +104,20 @@ sed -i "s/__SERIAL_1__/$(esc "$SERIAL_1")/g" /data/flows.json
 sed -i "s/__SERIAL_2__/$(esc "$SERIAL_2")/g" /data/flows.json
 sed -i "s/__SERIAL_3__/$(esc "$SERIAL_3")/g" /data/flows.json
 
+# ✅ Optionnel mais recommandé : credentials chiffrés (Node-RED 4.x)
+if [ -f /addon/flows_cred.json ]; then
+  cp /addon/flows_cred.json /data/flows_cred.json
+  sed -i "s/__MQTT_USER__/$(esc "$MQTT_USER")/g" /data/flows_cred.json
+  sed -i "s/__MQTT_PASS__/$(esc "$MQTT_PASS")/g" /data/flows_cred.json
+  logi "OK: flows_cred.json installé dans /data"
+else
+  logw "flows_cred.json absent -> Node-RED peut afficher 'Encrypted credentials not found'"
+fi
+
 # --- Nettoyage configs serial-port vides (jq minimal, sans !) ---
 cleanup_unconfigured_serial_ports() {
   local tmp="/data/flows.tmp.json"
 
-  # IDs des serial-port config dont "serialport" est vide
   local bad_ids
   bad_ids="$(jq -r '
     .[]
@@ -124,11 +133,9 @@ cleanup_unconfigured_serial_ports() {
 
   logw "Configs serial-port vides détectées (suppression): $(echo "$bad_ids" | tr '\n' ' ')"
 
-  # Construire un tableau JSON des bad ids
   local bad_json
   bad_json="$(printf '%s\n' "$bad_ids" | jq -R . | jq -s .)"
 
-  # 1) Supprimer les serial in/out qui référencent ces configs
   jq --argjson bad "$bad_json" '
     del(
       .[] |
@@ -137,7 +144,6 @@ cleanup_unconfigured_serial_ports() {
     )
   ' /data/flows.json > "$tmp" && mv "$tmp" /data/flows.json
 
-  # 2) Supprimer les configs serial-port elles-mêmes
   jq --argjson bad "$bad_json" '
     del(
       .[] |
@@ -149,10 +155,10 @@ cleanup_unconfigured_serial_ports() {
 
 cleanup_unconfigured_serial_ports
 
-# Vérifier placeholders
-if grep -q "__MQTT_HOST__\|__MQTT_PORT__\|__SERIAL_1__\|__SERIAL_2__\|__SERIAL_3__" /data/flows.json; then
+# Vérifier placeholders (incluant MQTT + serial)
+if grep -q "__MQTT_HOST__\|__MQTT_PORT__\|__MQTT_USER__\|__MQTT_PASS__\|__SERIAL_1__\|__SERIAL_2__\|__SERIAL_3__" /data/flows.json; then
   loge "Placeholders encore présents dans /data/flows.json -> vérifie flows.json et options.json"
-  grep -n "__MQTT_HOST__\|__MQTT_PORT__\|__SERIAL_1__\|__SERIAL_2__\|__SERIAL_3__" /data/flows.json || true
+  grep -n "__MQTT_HOST__\|__MQTT_PORT__\|__MQTT_USER__\|__MQTT_PASS__\|__SERIAL_1__\|__SERIAL_2__\|__SERIAL_3__" /data/flows.json || true
 else
   logi "OK: placeholders remplacés dans /data/flows.json"
 fi
