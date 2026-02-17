@@ -12,7 +12,6 @@
   "hassio_api": true,
   "homeassistant_api": true,
   "hassio_role": "default",
-  "services": ["mqtt:need"],
 
   "host_network": false,
 
@@ -25,7 +24,7 @@
   "options": {
     "serial_ports": ["", "", ""],
 
-    "mqtt_host": "core-mosquitto",
+    "mqtt_host": "",
     "mqtt_port": 1883,
     "mqtt_user": "",
     "mqtt_pass": "",
@@ -37,8 +36,8 @@
 
     "mqtt_host": "str",
     "mqtt_port": "int(1,65535)",
-    "mqtt_user": "str?",
-    "mqtt_pass": "password?",
+    "mqtt_user": "str",
+    "mqtt_pass": "password",
     "mqtt_prefix": "str?"
   }
 }
