@@ -20,7 +20,7 @@ logi "Smart Voltronic: init..."
 
 OPTS="/data/options.json"
 
-# ✅ NE PAS créer options.json : sinon on masque le montage HA
+# ✅ NE PAS créer options.json
 if [ ! -f "$OPTS" ]; then
   loge "options.json introuvable dans /data (montage HA absent ou problème d'add-on). Stop."
   loge "Chemin attendu: $OPTS"
@@ -39,7 +39,7 @@ jq_int_or() {
   jq -r "($jq_expr // $fallback) | tonumber" "$OPTS" 2>/dev/null || echo "$fallback"
 }
 
-# Escape safe pour sed
+# Escape safe pour sed (serial uniquement)
 esc() { printf '%s' "$1" | sed -e 's/[\/&|\\]/\\&/g'; }
 
 # ---------- MQTT : UNIQUEMENT options.json ----------
@@ -79,23 +79,37 @@ done
 # ---------- Appliquer flows ----------
 cp /addon/flows.json /data/flows.json
 
-# ⚠️ IMPORTANT :
-# On NE copie PAS flows_cred.json depuis /addon.
-# Chaque utilisateur garde ses credentials dans /data/flows_cred.json (Node-RED le gère).
-# Si tu veux forcer un reset complet des credentials (pas recommandé), décommente :
-# rm -f /data/flows_cred.json
-
-# ---------- Injection placeholders ----------
-# MQTT
-sed -i "s/__MQTT_HOST__/$(esc "$MQTT_HOST")/g" /data/flows.json
-sed -i "s/__MQTT_PORT__/$(esc "$MQTT_PORT")/g" /data/flows.json
-sed -i "s/__MQTT_USER__/$(esc "$MQTT_USER")/g" /data/flows.json
-sed -i "s/__MQTT_PASS__/$(esc "$MQTT_PASS")/g" /data/flows.json
-
-# Serial
+# ---------- Injection (robuste) ----------
+# 1) SERIAL via sed (simple)
 sed -i "s/__SERIAL_1__/$(esc "$SERIAL_1")/g" /data/flows.json
 sed -i "s/__SERIAL_2__/$(esc "$SERIAL_2")/g" /data/flows.json
 sed -i "s/__SERIAL_3__/$(esc "$SERIAL_3")/g" /data/flows.json
+
+# 2) MQTT via jq (évite tout souci de mot de passe)
+tmp="/data/flows.tmp.json"
+
+# Vérifie qu'on a bien un node mqtt-broker attendu
+if ! jq -e '.[] | select(.type=="mqtt-broker" and .name=="HA MQTT Broker")' /data/flows.json >/dev/null 2>&1; then
+  logw 'Aucun mqtt-broker nommé "HA MQTT Broker" trouvé. Injection MQTT ignorée (vérifie /addon/flows.json).'
+else
+  logi "Injection MQTT dans flows.json via jq (host/port/user/pass)"
+  jq \
+    --arg host "$MQTT_HOST" \
+    --arg port "$MQTT_PORT" \
+    --arg user "$MQTT_USER" \
+    --arg pass "$MQTT_PASS" \
+    '
+    map(
+      if .type=="mqtt-broker" and .name=="HA MQTT Broker"
+      then .broker=$host
+           | .port=$port
+           | .user=$user
+           | .password=$pass
+      else .
+      end
+    )
+    ' /data/flows.json > "$tmp" && mv "$tmp" /data/flows.json
+fi
 
 # --- Nettoyage configs serial-port vides (jq minimal) ---
 cleanup_unconfigured_serial_ports() {
@@ -138,9 +152,9 @@ cleanup_unconfigured_serial_ports() {
 
 cleanup_unconfigured_serial_ports
 
-# Vérifier placeholders restants
+# Vérifier placeholders restants (serial + MQTT)
 if grep -q "__MQTT_HOST__\|__MQTT_PORT__\|__MQTT_USER__\|__MQTT_PASS__\|__SERIAL_1__\|__SERIAL_2__\|__SERIAL_3__" /data/flows.json; then
-  loge "Placeholders encore présents dans /data/flows.json -> vérifie flows.json et options.json"
+  loge "Placeholders encore présents dans /data/flows.json -> vérifie /addon/flows.json et options.json"
   grep -n "__MQTT_HOST__\|__MQTT_PORT__\|__MQTT_USER__\|__MQTT_PASS__\|__SERIAL_1__\|__SERIAL_2__\|__SERIAL_3__" /data/flows.json || true
   exit 1
 else
@@ -149,4 +163,3 @@ fi
 
 logi "Starting Node-RED..."
 exec node-red --userDir /data --settings /addon/settings.js
-
