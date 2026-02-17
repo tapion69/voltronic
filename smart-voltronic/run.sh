@@ -20,7 +20,7 @@ logi "Smart Voltronic: init..."
 
 OPTS="/data/options.json"
 
-# ✅ NE PAS créer options.json : sinon on masque le montage HA et on perd user/pass
+# ✅ NE PAS créer options.json : sinon on masque le montage HA
 if [ ! -f "$OPTS" ]; then
   loge "options.json introuvable dans /data (montage HA absent ou problème d'add-on). Stop."
   loge "Chemin attendu: $OPTS"
@@ -39,26 +39,23 @@ jq_int_or() {
   jq -r "($jq_expr // $fallback) | tonumber" "$OPTS" 2>/dev/null || echo "$fallback"
 }
 
-# Escape safe pour sed (flows.json uniquement)
+# Escape safe pour sed
 esc() { printf '%s' "$1" | sed -e 's/[\/&|\\]/\\&/g'; }
 
-# ---------- MQTT : UNIQUEMENT options.json (pas d'auto Supervisor) ----------
+# ---------- MQTT : UNIQUEMENT options.json ----------
 MQTT_HOST="$(jq_str_or '.mqtt_host' '')"
 MQTT_PORT="$(jq_int_or '.mqtt_port' 1883)"
 MQTT_USER="$(jq -r '.mqtt_user // .mqtt_username // ""' "$OPTS")"
 MQTT_PASS="$(jq -r '.mqtt_pass // .mqtt_password // ""' "$OPTS")"
 
-# Affichage
 logi "MQTT (options.json): ${MQTT_HOST:-<empty>}:${MQTT_PORT} (user: ${MQTT_USER:-<none>})"
 
-# ✅ Forcer l'utilisateur à configurer
 if [ -z "${MQTT_HOST}" ]; then
   loge "mqtt_host vide. Renseigne-le dans l'onglet Configuration de l'add-on."
-  loge "Exemples: 127.0.0.1 (Mosquitto sur HA), IP du broker, nom DNS..."
   exit 1
 fi
 
-# Si tu veux autoriser broker sans auth -> commente ce bloc
+# Si tu veux autoriser un broker sans auth, commente ce bloc
 if [ -z "${MQTT_USER}" ] || [ -z "${MQTT_PASS}" ]; then
   loge "mqtt_user ou mqtt_pass vide. Renseigne-les dans l'onglet Configuration de l'add-on."
   exit 1
@@ -82,22 +79,20 @@ done
 # ---------- Appliquer flows ----------
 cp /addon/flows.json /data/flows.json
 
-# ✅ Copier les credentials Node-RED (NE PAS MODIFIER : fichier chiffré)
-if [ -f /addon/flows_cred.json ]; then
-  cp /addon/flows_cred.json /data/flows_cred.json
-  logi "OK: flows_cred.json copié dans /data"
-  logi "flows_cred.json taille: $(wc -c </data/flows_cred.json) bytes"
-else
-  logw "flows_cred.json absent -> Node-RED démarrera sans credentials (MQTT auth KO)"
-fi
+# ⚠️ IMPORTANT :
+# On NE copie PAS flows_cred.json depuis /addon.
+# Chaque utilisateur garde ses credentials dans /data/flows_cred.json (Node-RED le gère).
+# Si tu veux forcer un reset complet des credentials (pas recommandé), décommente :
+# rm -f /data/flows_cred.json
 
-# Inject MQTT (dans flows.json uniquement)
+# ---------- Injection placeholders ----------
+# MQTT
 sed -i "s/__MQTT_HOST__/$(esc "$MQTT_HOST")/g" /data/flows.json
 sed -i "s/__MQTT_PORT__/$(esc "$MQTT_PORT")/g" /data/flows.json
 sed -i "s/__MQTT_USER__/$(esc "$MQTT_USER")/g" /data/flows.json
 sed -i "s/__MQTT_PASS__/$(esc "$MQTT_PASS")/g" /data/flows.json
 
-# Inject Serial
+# Serial
 sed -i "s/__SERIAL_1__/$(esc "$SERIAL_1")/g" /data/flows.json
 sed -i "s/__SERIAL_2__/$(esc "$SERIAL_2")/g" /data/flows.json
 sed -i "s/__SERIAL_3__/$(esc "$SERIAL_3")/g" /data/flows.json
@@ -147,9 +142,11 @@ cleanup_unconfigured_serial_ports
 if grep -q "__MQTT_HOST__\|__MQTT_PORT__\|__MQTT_USER__\|__MQTT_PASS__\|__SERIAL_1__\|__SERIAL_2__\|__SERIAL_3__" /data/flows.json; then
   loge "Placeholders encore présents dans /data/flows.json -> vérifie flows.json et options.json"
   grep -n "__MQTT_HOST__\|__MQTT_PORT__\|__MQTT_USER__\|__MQTT_PASS__\|__SERIAL_1__\|__SERIAL_2__\|__SERIAL_3__" /data/flows.json || true
+  exit 1
 else
   logi "OK: placeholders remplacés dans /data/flows.json"
 fi
 
 logi "Starting Node-RED..."
 exec node-red --userDir /data --settings /addon/settings.js
+
