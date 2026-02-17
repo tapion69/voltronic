@@ -68,13 +68,7 @@ logi "Serial3: ${SERIAL_3:-<empty>}"
 # ---------- Appliquer flows ----------
 cp /addon/flows.json /data/flows.json
 
-# ✅ IMPORTANT : on supprime les anciens credentials pour forcer Node-RED à reprendre ceux qu’on injecte
-if [ -f /data/flows_cred.json ]; then
-  rm -f /data/flows_cred.json
-  logw "flows_cred.json supprimé (reset creds Node-RED) pour éviter anciens identifiants MQTT"
-fi
-
-# ---------- Serial placeholders (si tu utilises __SERIAL_X__) ----------
+# ---------- Serial placeholders ----------
 sed -i "s/__SERIAL_1__/$(esc "$SERIAL_1")/g" /data/flows.json
 sed -i "s/__SERIAL_2__/$(esc "$SERIAL_2")/g" /data/flows.json
 sed -i "s/__SERIAL_3__/$(esc "$SERIAL_3")/g" /data/flows.json
@@ -87,28 +81,51 @@ if ! jq -e '.[] | select(.type=="mqtt-broker" and .name=="HA MQTT Broker")' /dat
   exit 1
 fi
 
-logi "Injection MQTT (broker/port + credentials) dans flows.json"
+logi "Injection MQTT (broker/port) dans flows.json"
 
 jq \
   --arg host "$MQTT_HOST" \
   --arg port "$MQTT_PORT" \
   --arg user "$MQTT_USER" \
-  --arg pass "$MQTT_PASS" \
   '
   map(
     if .type=="mqtt-broker" and .name=="HA MQTT Broker"
     then
       .broker=$host
       | .port=$port
-      # Certains nodes lisent user/password ici…
       | .user=$user
-      | .password=$pass
-      # …et surtout le node mqtt garde souvent les creds dans "credentials"
-      | .credentials = {"user": $user, "password": $pass}
     else .
     end
   )
   ' /data/flows.json > "$tmp" && mv "$tmp" /data/flows.json
+
+# ---------- Injection credentials dans flows_cred.json ----------
+# Node-RED ne lit PAS les mots de passe en clair depuis flows.json,
+# il les cherche exclusivement dans flows_cred.json.
+# On supprime l'ancien fichier et on en recrée un propre à chaque démarrage.
+
+if [ -f /data/flows_cred.json ]; then
+  rm -f /data/flows_cred.json
+  logw "Ancien flows_cred.json supprimé"
+fi
+
+BROKER_ID="$(jq -r '.[] | select(.type=="mqtt-broker" and .name=="HA MQTT Broker") | .id' /data/flows.json)"
+
+if [ -z "$BROKER_ID" ]; then
+  loge "Impossible de récupérer l'ID du node mqtt-broker dans flows.json"
+  exit 1
+fi
+
+logi "Broker node ID: $BROKER_ID — Création flows_cred.json"
+
+jq -n \
+  --arg id "$BROKER_ID" \
+  --arg user "$MQTT_USER" \
+  --arg pass "$MQTT_PASS" \
+  '{($id): {"user": $user, "password": $pass}}' \
+  > /data/flows_cred.json
+
+logi "flows_cred.json créé avec succès"
 
 # --- Nettoyage configs serial-port vides ---
 cleanup_unconfigured_serial_ports() {
@@ -149,10 +166,6 @@ cleanup_unconfigured_serial_ports() {
   ' /data/flows.json > "$tmp" && mv "$tmp" /data/flows.json
 }
 cleanup_unconfigured_serial_ports
-
-logi "Starting Node-RED..."
-exec node-red --userDir /data --settings /addon/settings.js
-
 
 logi "Starting Node-RED..."
 exec node-red --userDir /data --settings /addon/settings.js
