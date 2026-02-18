@@ -65,6 +65,63 @@ logi "Serial1: ${SERIAL_1:-<empty>}"
 logi "Serial2: ${SERIAL_2:-<empty>}"
 logi "Serial3: ${SERIAL_3:-<empty>}"
 
+# ---------- Génération du hash bcrypt pour l'auth Node-RED ----------
+# On utilise bcryptjs qui est inclus dans Node-RED
+logi "Génération du hash bcrypt pour l'auth Node-RED..."
+
+NR_ADMIN_AUTH_FILE="/data/nr_adminauth.json"
+NR_ADMIN_USER="pi"
+NR_ADMIN_PASS="monstro6364"
+
+# Cherche bcryptjs dans les node_modules de Node-RED
+BCRYPTJS_PATH=""
+for p in \
+  /usr/lib/node_modules/node-red/node_modules/bcryptjs \
+  /usr/local/lib/node_modules/node-red/node_modules/bcryptjs \
+  /opt/node_modules/bcryptjs \
+  /usr/lib/node_modules/bcryptjs \
+  /usr/local/lib/node_modules/bcryptjs; do
+  if [ -f "${p}/index.js" ]; then
+    BCRYPTJS_PATH="$p"
+    break
+  fi
+done
+
+if [ -z "$BCRYPTJS_PATH" ]; then
+  loge "bcryptjs introuvable. Impossible de générer le hash pour l'auth Node-RED."
+  exit 1
+fi
+
+logi "bcryptjs trouvé : $BCRYPTJS_PATH"
+
+HASH="$(node -e "
+const bcrypt = require('$BCRYPTJS_PATH');
+console.log(bcrypt.hashSync('$NR_ADMIN_PASS', 8));
+")"
+
+if [ -z "$HASH" ]; then
+  loge "Échec de la génération du hash bcrypt."
+  exit 1
+fi
+
+logi "Hash bcrypt généré avec succès"
+
+# Écriture du fichier d'auth lu par settings.js
+cat > "$NR_ADMIN_AUTH_FILE" << JSONEOF
+{
+  "type": "credentials",
+  "users": [
+    {
+      "username": "${NR_ADMIN_USER}",
+      "password": "${HASH}",
+      "permissions": "*"
+    }
+  ]
+}
+JSONEOF
+
+logi "nr_adminauth.json créé : accès avec user=${NR_ADMIN_USER}"
+
 # ---------- Appliquer flows ----------
 cp /addon/flows.json /data/flows.json
 
@@ -100,10 +157,6 @@ jq \
   ' /data/flows.json > "$tmp" && mv "$tmp" /data/flows.json
 
 # ---------- Injection credentials dans flows_cred.json ----------
-# Node-RED ne lit PAS les mots de passe en clair depuis flows.json,
-# il les cherche exclusivement dans flows_cred.json.
-# On supprime l'ancien fichier et on en recrée un propre à chaque démarrage.
-
 if [ -f /data/flows_cred.json ]; then
   rm -f /data/flows_cred.json
   logw "Ancien flows_cred.json supprimé"
@@ -167,5 +220,5 @@ cleanup_unconfigured_serial_ports() {
 }
 cleanup_unconfigured_serial_ports
 
-logi "Starting Node-RED..."
+logi "Starting Node-RED sur le port 1892..."
 exec node-red --userDir /data --settings /addon/settings.js
