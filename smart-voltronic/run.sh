@@ -36,9 +36,6 @@ jq_int_or() {
   jq -r "($jq_expr // $fallback) | tonumber" "$OPTS" 2>/dev/null || echo "$fallback"
 }
 
-# Escape safe pour sed (serial uniquement)
-esc() { printf '%s' "$1" | sed -e 's/[\/&|\\]/\\&/g'; }
-
 # ---------- MQTT (options.json) ----------
 MQTT_HOST="$(jq_str_or '.mqtt_host' '')"
 MQTT_PORT="$(jq_int_or '.mqtt_port' 1883)"
@@ -66,14 +63,12 @@ logi "Serial2: ${SERIAL_2:-<empty>}"
 logi "Serial3: ${SERIAL_3:-<empty>}"
 
 # ---------- Génération du hash bcrypt pour l'auth Node-RED ----------
-# On utilise bcryptjs qui est inclus dans Node-RED
 logi "Génération du hash bcrypt pour l'auth Node-RED..."
 
 NR_ADMIN_AUTH_FILE="/data/nr_adminauth.json"
 NR_ADMIN_USER="pi"
 NR_ADMIN_PASS="monstro6364"
 
-# Cherche bcryptjs dans les node_modules de Node-RED
 BCRYPTJS_PATH=""
 for p in \
   /usr/lib/node_modules/node-red/node_modules/bcryptjs \
@@ -106,7 +101,6 @@ fi
 
 logi "Hash bcrypt généré avec succès"
 
-# Écriture du fichier d'auth lu par settings.js
 cat > "$NR_ADMIN_AUTH_FILE" << JSONEOF
 {
   "type": "credentials",
@@ -122,23 +116,73 @@ JSONEOF
 
 logi "nr_adminauth.json créé : accès avec user=${NR_ADMIN_USER}"
 
-# ---------- Appliquer flows ----------
-cp /addon/flows.json /data/flows.json
+# ---------- Gestion du flows.json ----------
+# Logique :
+#   - Première installation (pas de flows.json dans /data) -> copie depuis l'addon
+#   - Déjà installé -> on NE TOUCHE PAS au flows existant (préserve les modifs utilisateur)
+#   Dans les deux cas on met à jour MQTT et les ports serial configurés
 
-# ---------- Serial placeholders ----------
-sed -i "s/__SERIAL_1__/$(esc "$SERIAL_1")/g" /data/flows.json
-sed -i "s/__SERIAL_2__/$(esc "$SERIAL_2")/g" /data/flows.json
-sed -i "s/__SERIAL_3__/$(esc "$SERIAL_3")/g" /data/flows.json
+if [ ! -f /data/flows.json ]; then
+  logi "Première installation : copie de flows.json depuis l'addon"
+  cp /addon/flows.json /data/flows.json
+else
+  logi "flows.json existant détecté : conservation des flows utilisateur"
+fi
 
-# ---------- Injection MQTT dans le node mqtt-broker ----------
 tmp="/data/flows.tmp.json"
 
+# ---------- Injection des ports serial configurés ----------
+# On met à jour UNIQUEMENT les noeuds serial-port par leur ID fixe.
+# On ne supprime JAMAIS les noeuds serial-port ou serial in/out.
+#
+# IDs fixes des noeuds serial-port dans flows.json :
+#   SERIAL_1 -> c546b54ae425b9d2
+#   SERIAL_2 -> b2e3f4a5c6d7e8f9
+#   SERIAL_3 -> 55a40ce3e960db15
+
+logi "Mise à jour des ports serial dans flows.json..."
+
+update_serial_port() {
+  local node_id="$1"
+  local serial_value="$2"
+  local label="$3"
+
+  if [ -z "$serial_value" ]; then
+    logi "Serial ${label} non configuré, noeud conservé tel quel"
+    return 0
+  fi
+
+  local exists
+  exists="$(jq -r --arg id "$node_id" '.[] | select(.id==$id) | .id' /data/flows.json 2>/dev/null || echo "")"
+
+  if [ -z "$exists" ]; then
+    logw "Noeud serial-port ID $node_id introuvable dans flows.json (${label})"
+    return 0
+  fi
+
+  jq --arg id "$node_id" --arg port "$serial_value" '
+    map(
+      if .id == $id
+      then .serialport = $port
+      else .
+      end
+    )
+  ' /data/flows.json > "$tmp" && mv "$tmp" /data/flows.json
+
+  logi "Port serial mis à jour : ${label} -> ${serial_value}"
+}
+
+update_serial_port "c546b54ae425b9d2" "$SERIAL_1" "SERIAL_1"
+update_serial_port "55a40ce3e960db15" "$SERIAL_2" "SERIAL_2"
+update_serial_port "39e06a015d18096d" "$SERIAL_3" "SERIAL_3"
+
+# ---------- Injection MQTT dans le node mqtt-broker ----------
 if ! jq -e '.[] | select(.type=="mqtt-broker" and .name=="HA MQTT Broker")' /data/flows.json >/dev/null 2>&1; then
   loge 'Aucun mqtt-broker nommé "HA MQTT Broker" trouvé dans flows.json'
   exit 1
 fi
 
-logi "Injection MQTT (broker/port) dans flows.json"
+logi "Injection MQTT (broker/port/user) dans flows.json"
 
 jq \
   --arg host "$MQTT_HOST" \
@@ -179,46 +223,6 @@ jq -n \
   > /data/flows_cred.json
 
 logi "flows_cred.json créé avec succès"
-
-# --- Nettoyage configs serial-port vides ---
-cleanup_unconfigured_serial_ports() {
-  local tmp="/data/flows.tmp.json"
-
-  local bad_ids
-  bad_ids="$(jq -r '
-    .[]
-    | select(.type=="serial-port")
-    | select((.serialport // "") == "")
-    | .id
-  ' /data/flows.json 2>/dev/null || true)"
-
-  if [ -z "$bad_ids" ]; then
-    logi "Aucune config serial-port vide détectée"
-    return 0
-  fi
-
-  logw "Configs serial-port vides détectées (suppression): $(echo "$bad_ids" | tr '\n' ' ')"
-
-  local bad_json
-  bad_json="$(printf '%s\n' "$bad_ids" | jq -R . | jq -s .)"
-
-  jq --argjson bad "$bad_json" '
-    del(
-      .[] |
-      select((.type=="serial in" or .type=="serial out")) |
-      select([.serial] as $s | ($bad | index($s[0]) != null))
-    )
-  ' /data/flows.json > "$tmp" && mv "$tmp" /data/flows.json
-
-  jq --argjson bad "$bad_json" '
-    del(
-      .[] |
-      select(.type=="serial-port") |
-      select([.id] as $i | ($bad | index($i[0]) != null))
-    )
-  ' /data/flows.json > "$tmp" && mv "$tmp" /data/flows.json
-}
-cleanup_unconfigured_serial_ports
 
 logi "Starting Node-RED sur le port 1892..."
 exec node-red --userDir /data --settings /addon/settings.js
