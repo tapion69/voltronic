@@ -1,9 +1,3 @@
-Perfect 👍 here is the **FINAL README reordered** with the **Installation section moved near the top**.
-
-You can copy/paste directly into GitHub.
-
----
-
 # 🔋 Smart Voltronic – Home Assistant Add-on
 
 ➡️ **Lire ce README en français :**
@@ -38,7 +32,7 @@ You will need:
 
 * RJ45 connector (Ethernet plug)
 * DB9 female connector
-* Small cable (only **3 wires required**)
+* Small cable (**only 3 wires required**)
 * USB → RS232 adapter (**FTDI recommended**)
 
 ---
@@ -124,12 +118,6 @@ The add-on can manage **up to 3 inverters simultaneously**:
 * Serial 2 → Inverter 2
 * Serial 3 → Inverter 3
 
-Inverters can be:
-
-* Standalone
-* Parallel Voltronic systems
-* Different models and generations
-
 Each inverter has:
 
 * Its own serial port
@@ -167,16 +155,16 @@ You can mix different inverter models **without modifying any code**.
 
 Automatic data integration into Home Assistant:
 
-* Real-time inverter status (mode, charging, discharging, PV, grid…)
+* Real-time inverter status
 * PV / Battery / Load power
 * Daily / Monthly / Yearly energy
 * Temperatures, voltages, currents
 * Alarms and warnings
 * MPPT status
 * Battery State of Charge
-* AC charging & solar charging status
+* AC & solar charging status
 
-Fast refresh rate (~4 seconds).
+Refresh rate ≈ **4 seconds**.
 
 ---
 
@@ -200,11 +188,9 @@ Adjust inverter settings directly from HA:
 
 ### Currents
 
-* Max charging current (total)
-* Max AC charging current (grid)
+* Max charging current
+* Max AC charging current
 * Max discharging current
-
-### Battery thresholds & firmware options
 
 Every change:
 
@@ -218,12 +204,7 @@ No desynchronization possible.
 
 # 🌐 Future support – Gateway / Ethernet modules
 
-A future release will add support for **gateway modules**, allowing inverters to connect via:
-
-* Wi-Fi
-* Ethernet
-
-This enables **USB-free installations**, ideal for remote setups or technical racks.
+Future versions will support **gateway modules** (Wi-Fi / Ethernet) for **USB-free installations**.
 
 ---
 
@@ -245,9 +226,9 @@ No YAML configuration required.
 
 After each setting change:
 
-* A burst read is triggered
-* Parameters are verified
-* Home Assistant always reflects the **real inverter state**
+* Burst read triggered
+* Parameters verified
+* HA always reflects the **real inverter state**
 
 ---
 
@@ -261,22 +242,58 @@ After each setting change:
 
 ---
 
+# 📊 Anonymous telemetry (optional)
+
+To help understand how many installations are running the add-on, an **optional anonymous telemetry ping** can be enabled.
+
+When enabled, the add-on sends a small daily **“bip”** request that increments a global counter.
+
+### Privacy first
+
+The telemetry contains **NO personal or technical data**:
+
+* ❌ No IP stored
+* ❌ No Home Assistant data
+* ❌ No MQTT data
+* ❌ No inverter data
+* ❌ No serial numbers
+
+It only counts **how many installations exist**.
+
+### Enable / disable
+
+Enabled by default:
+
+```yaml
+send_bip: true
+```
+
+Disable telemetry:
+
+```yaml
+send_bip: false
+```
+
+The add-on works exactly the same when disabled.
+
+---
+
 ## 📄 Full parameter list
 
-👉 [https://github.com/tapion69/smart-voltronic/blob/main/smart-voltronic/PARAMETERS.md](https://github.com/tapion69/smart-voltronic/blob/main/smart-voltronic/PARAMETERS.md)
+[https://github.com/tapion69/smart-voltronic/blob/main/smart-voltronic/PARAMETERS.md](https://github.com/tapion69/smart-voltronic/blob/main/smart-voltronic/PARAMETERS.md)
 
 ---
 
 # 🛠️ Support & Suggestions
 
-For bugs, issues, or feature requests, please open an **issue on the GitHub repository**.
+Open an **issue on GitHub** for bugs or feature requests.
 
 ---
 
 # ❤️ Contribution
 
 Open-source and evolving project.
-Contributions and feedback are very welcome.
+Contributions and feedback are welcome.
 
 ---
 
