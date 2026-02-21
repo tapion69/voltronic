@@ -137,7 +137,7 @@ voltronic/<id>/set/<param>
 
 Prochaines évolutions prévues :
 
-* Support des modules **Elfin Wi-Fi / Ethernet**
+* Support des modules **gateway / Ethernet**
 * Amélioration détection automatique des modèles
 * Ajout de nouveaux flags firmware
 * Support étendu des systèmes parallèles
