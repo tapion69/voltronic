@@ -5,7 +5,7 @@ Here’s a clean, polished **English README** ready for GitHub, with a French li
 # 🔋 Smart Voltronic – Home Assistant Add-on
 
 ➡️ **Lire ce README en français :**
-[[https://github.com/tapion69/smart-voltronic/blob/main/README_FR.md](https://github.com/tapion69/smart-voltronic/blob/main/README_FR.md)](https://github.com/tapion69/smart-voltronic/blob/main/smart-voltronic/README_FR.md)
+https://github.com/tapion69/smart-voltronic/blob/main/smart-voltronic/README_FR.md
 
 ☕ **Support the developers:**
 If you like this project, you can support future development here:
