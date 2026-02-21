@@ -1,202 +1,200 @@
-🔋 Smart Voltronic – Home Assistant Add-on
+Here’s a clean, polished **English README** ready for GitHub, with a French link at the top and a Buy-Me-a-Coffee line added 👍
 
-➡️ Lire ce README en français :
-https://github.com/tapion69/smart-voltronic/blob/main/README_FR.md
+---
 
-☕ Support the developers:
+# 🔋 Smart Voltronic – Home Assistant Add-on
+
+➡️ **Lire ce README en français :**
+[https://github.com/tapion69/smart-voltronic/blob/main/README_FR.md](https://github.com/tapion69/smart-voltronic/blob/main/README_FR.md)
+
+☕ **Support the developers:**
 If you like this project, you can support future development here:
-https://www.buymeacoffee.com/tapion69
+[https://www.buymeacoffee.com/tapion69](https://www.buymeacoffee.com/tapion69)
 
-Home Assistant add-on designed to monitor and control up to 3 Voltronic / Axpert inverters.
+---
+
+Home Assistant add-on designed to **monitor and control up to 3 Voltronic / Axpert inverters**.
 
 Compatible with most models using the Voltronic protocol (Axpert, VM, MKS, MAX, MAX II, MAX IV…).
 
-⚙️ Configuration (Important)
-🔌 Number of supported inverters
+---
 
-The add-on can manage up to 3 inverters simultaneously:
+# ⚙️ Configuration (Important)
 
-Serial 1 → Inverter 1
+## 🔌 Number of supported inverters
 
-Serial 2 → Inverter 2
+The add-on can manage **up to 3 inverters simultaneously**:
 
-Serial 3 → Inverter 3
+* Serial 1 → Inverter 1
+* Serial 2 → Inverter 2
+* Serial 3 → Inverter 3
 
 Inverters can be:
 
-Standalone
-
-Parallel Voltronic systems
-
-Different models and generations
+* Standalone
+* Parallel Voltronic systems
+* Different models and generations
 
 Each inverter has:
 
-Its own serial port
+* Its own serial port
+* Its own MQTT namespace
+* Its own Home Assistant entities
 
-Its own MQTT namespace
+### MQTT Topics
 
-Its own Home Assistant entities
-
-MQTT Topics
+```
 voltronic/1/...
 voltronic/2/...
 voltronic/3/...
+```
 
 Each inverter is completely isolated from the others.
 
-🧠 Multi-model compatibility
+---
+
+## 🧠 Multi-model compatibility
 
 Firmware differences between generations are handled automatically:
 
-Detection of supported commands
+* Detection of supported commands
+* Automatic NAK handling
+* Automatic format adaptation
+* Smart fallback when needed
 
-Automatic NAK handling
+You can mix different inverter models **without modifying any code**.
 
-Automatic format adaptation
+---
 
-Smart fallback when needed
+# ✨ Main Features
 
-You can mix different inverter models without modifying any code.
-
-✨ Main Features
-🟢 Full monitoring
+## 🟢 Full monitoring
 
 Automatic data integration into Home Assistant:
 
-Real-time inverter status (mode, charging, discharging, PV, grid…)
-
-PV / Battery / Load power
-
-Daily / Monthly / Yearly energy
-
-Temperatures, voltages, currents
-
-Alarms and warnings
-
-MPPT status
-
-Battery State of Charge
-
-AC charging & solar charging status
+* Real-time inverter status (mode, charging, discharging, PV, grid…)
+* PV / Battery / Load power
+* Daily / Monthly / Yearly energy
+* Temperatures, voltages, currents
+* Alarms and warnings
+* MPPT status
+* Battery State of Charge
+* AC charging & solar charging status
 
 Fast refresh rate (~4 seconds).
 
-🎛️ Control directly from Home Assistant
+---
+
+## 🎛️ Control directly from Home Assistant
 
 Adjust inverter settings directly from HA:
 
-Output & Charging priorities
+### Output & Charging priorities
 
-Output priority (Utility / Solar / SBU)
+* Output priority (Utility / Solar / SBU)
+* Charging priority (Solar First / Solar + Utility / Solar Only)
+* Battery type
 
-Charging priority (Solar First / Solar + Utility / Solar Only)
+### Battery voltages
 
-Battery type
+* Bulk (CV)
+* Float
+* Recharge
+* Re-discharge
+* Cut-off
 
-Battery voltages
+### Currents
 
-Bulk (CV)
+* Max charging current (total)
+* Max AC charging current (grid)
+* Max discharging current
 
-Float
-
-Recharge
-
-Re-discharge
-
-Cut-off
-
-Currents
-
-Max charging current (total)
-
-Max AC charging current (grid)
-
-Max discharging current
-
-Battery thresholds & firmware options
+### Battery thresholds & firmware options
 
 Every change:
 
-Is sent to the inverter
-
-Is automatically read back
-
-Is synchronized with Home Assistant
+1. Is sent to the inverter
+2. Is automatically read back
+3. Is synchronized with Home Assistant
 
 No desynchronization possible.
 
-🌐 Future support – Elfin Wi-Fi / Ethernet modules
+---
 
-A future release will add support for Elfin modules, allowing inverters to connect via:
+# 🌐 Future support – Elfin Wi-Fi / Ethernet modules
 
-Wi-Fi
+A future release will add support for **Elfin modules**, allowing inverters to connect via:
 
-Ethernet
+* Wi-Fi
+* Ethernet
 
-This enables USB-free installations, ideal for remote setups or technical racks.
+This enables **USB-free installations**, ideal for remote setups or technical racks.
 
-🏠 Home Assistant Integration
+---
 
-Entities are created automatically via MQTT Auto-Discovery:
+# 🏠 Home Assistant Integration
 
-Sensors
+Entities are created automatically via **MQTT Auto-Discovery**:
 
-Numbers
-
-Selects
-
-Switches
-
-Binary sensors
+* Sensors
+* Numbers
+* Selects
+* Switches
+* Binary sensors
 
 No YAML configuration required.
 
-🔄 Automatic synchronization
+---
+
+# 🔄 Automatic synchronization
 
 After each setting change:
 
-A burst read is triggered
+* A burst read is triggered
+* Parameters are verified
+* Home Assistant always reflects the **real inverter state**
 
-Parameters are verified
+---
 
-Home Assistant always reflects the real inverter state
+# 🔐 Robust & Reliable
 
-🔐 Robust & Reliable
+* Automatic serial error handling
+* Invalid command protection
+* Serial queue (collision prevention)
+* Automatic restart on failure
+* Compatible with parallel systems
 
-Automatic serial error handling
+---
 
-Invalid command protection
-
-Serial queue (collision prevention)
-
-Automatic restart on failure
-
-Compatible with parallel systems
-
-📄 Full parameter list
+## 📄 Full parameter list
 
 The complete list of sensors and settings is available here:
 
-👉 https://github.com/tapion69/smart-voltronic/blob/main/smart-voltronic/PARAMETERS.md
+👉 [https://github.com/tapion69/smart-voltronic/blob/main/smart-voltronic/PARAMETERS.md](https://github.com/tapion69/smart-voltronic/blob/main/smart-voltronic/PARAMETERS.md)
 
-🧩 To be completed
+---
+
+# 🧩 To be completed
 
 You may add:
 
-RS232 / USB wiring diagram
+* RS232 / USB wiring diagram
+* Recommended adapters
+* Hardware installation examples
 
-Recommended adapters
+---
 
-Hardware installation examples
+# 🛠️ Support & Suggestions
 
-🛠️ Support & Suggestions
+For bugs, issues, or feature requests, please open an **issue on the GitHub repository**.
 
-For bugs, issues, or feature requests, please open an issue on the GitHub repository.
+---
 
-❤️ Contribution
+# ❤️ Contribution
 
 Open-source and evolving project.
 Contributions and feedback are very welcome.
 
-Smart inverter control, fully integrated into Home Assistant 🚀
+---
+
+**Smart inverter control, fully integrated into Home Assistant 🚀**
