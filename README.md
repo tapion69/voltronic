@@ -51,6 +51,7 @@ Monitor PV production, MPPT inputs, daily/monthly/yearly solar statistics.
 
 
 
+
 # 🔧 Installation – RS232 Cable & USB Adapter
 
 This add-on communicates with the inverter using the **Voltronic RS232 port (RJ45 connector)**.
