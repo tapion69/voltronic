@@ -15,6 +15,41 @@ Compatible with most models using the Voltronic protocol (Axpert, VM, MKS, MAX, 
 
 ---
 
+## 📸 Screenshots
+
+### 🔎 Device information & status
+
+Monitor inverter status, firmware, warnings and fault details directly in Home Assistant.
+
+![Device info](images/dashboard-overview.png)
+
+---
+
+### ⚙️ Inverter settings from Home Assistant
+
+Change key inverter parameters directly from Home Assistant UI:
+battery type, charging priority, voltages, grid settings and more.
+
+![Settings](images/inverter-settings.png)
+
+---
+
+### ⚡ Real-time power monitoring
+
+Track all critical electrical values in real time:
+AC output, battery charge/discharge, grid usage and load statistics.
+
+![Power](images/inverter-power.png)
+
+---
+
+### ☀️ Solar production tracking
+
+Monitor PV production, MPPT inputs, daily/monthly/yearly solar statistics.
+
+![PV](images/inverter-pv.png)
+
+
 # 🔧 Installation – RS232 Cable & USB Adapter
 
 This add-on communicates with the inverter using the **Voltronic RS232 port (RJ45 connector)**.
